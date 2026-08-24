@@ -1,5 +1,7 @@
 # Gmail MCP Server
 
+> **Auren Mail:** este fork incluye un colector multi-cuenta fiable, sin LLM. Consulte la [guía completa de Auren Mail](docs/AUREN_MAIL.md).
+
 ### Multi-Account Gmail for AI Agents & Assistants
 
 An open-source [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that gives AI agents and assistants full read and write access to Gmail. Connect multiple Gmail accounts, search emails, archive, label, and auto-unsubscribe. All through one server.
