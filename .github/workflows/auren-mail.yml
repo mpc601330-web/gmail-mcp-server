@@ -1,0 +1,97 @@
+name: Auren Mail Collector
+
+on:
+  schedule:
+    # GitHub cron is UTC. Run hourly, then gate on Europe/Madrid local time.
+    - cron: "7 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: auren-mail-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  local-time-gate:
+    runs-on: ubuntu-latest
+    outputs:
+      run_collector: ${{ steps.gate.outputs.run_collector }}
+    steps:
+      - id: gate
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          hour="$(TZ=Europe/Madrid date +%H)"
+          if [[ "$EVENT_NAME" == "workflow_dispatch" || "$hour" =~ ^(09|18|20)$ ]]; then
+            echo "run_collector=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_collector=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  collect:
+    needs: local-time-gate
+    if: needs.local-time-gate.outputs.run_collector == 'true'
+    runs-on: ubuntu-latest
+    environment: auren-mail-production
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build && npm test
+      - name: Restore encrypted operational state
+        shell: bash
+        env:
+          AUREN_STATE_ENCRYPTION_KEY: ${{ secrets.AUREN_STATE_ENCRYPTION_KEY }}
+        run: |
+          mkdir -p data/auren .auren-state
+          if git fetch --quiet origin refs/heads/auren-state:refs/remotes/origin/auren-state 2>/dev/null; then
+            git show origin/auren-state:auren-state.enc > .auren-state/state.enc
+            npm run --silent state:crypto -- decrypt .auren-state/state.enc data/auren/state.json
+          else
+            echo "No previous operational state; starting with configured lookback"
+          fi
+      - name: Run collector
+        id: collector
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          TOKENS_DATA: ${{ secrets.TOKENS_DATA }}
+          AUREN_STATE_ENCRYPTION_KEY: ${{ secrets.AUREN_STATE_ENCRYPTION_KEY }}
+          AUREN_DIGEST_RECIPIENT: ${{ secrets.AUREN_DIGEST_RECIPIENT }}
+          AUREN_SENDER_ACCOUNT: ${{ secrets.AUREN_SENDER_ACCOUNT }}
+          DATA_DIR: ./data
+          AUREN_STATE_DIR: ./data/auren
+          AUREN_TIMEZONE: Europe/Madrid
+        run: npm run collect
+      - name: Encrypt operational state
+        if: always() && hashFiles('data/auren/state.json') != ''
+        env:
+          AUREN_STATE_ENCRYPTION_KEY: ${{ secrets.AUREN_STATE_ENCRYPTION_KEY }}
+        run: npm run --silent state:crypto -- encrypt data/auren/state.json .auren-state/state.enc
+      - name: Persist encrypted state branch
+        if: always() && hashFiles('.auren-state/state.enc') != ''
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          blob="$(git hash-object -w .auren-state/state.enc)"
+          tree="$(printf '100644 blob %s\tauren-state.enc\n' "$blob" | git mktree)"
+          expected=""
+          if git rev-parse --verify origin/auren-state >/dev/null 2>&1; then
+            expected="$(git rev-parse origin/auren-state)"
+          fi
+          # A root commit plus force-with-lease keeps no intentional history of
+          # old ciphertext while protecting against an unexpected concurrent write.
+          commit="$(printf 'Persist encrypted Auren operational state\n' | git commit-tree "$tree")"
+          git push --quiet --force-with-lease="refs/heads/auren-state:$expected" origin "$commit:refs/heads/auren-state"

@@ -1,5 +1,11 @@
 # Gmail MCP Server
 
+> **Auren Mail:** este fork incluye un colector multi-cuenta fiable, sin LLM. Consulte la [guía completa de Auren Mail](docs/AUREN_MAIL.md).
+
+## GitHub Actions Deployment
+
+Auren Mail puede ejecutarse sin servidor persistente mediante el workflow programado incluido. El estado operativo se cifra y se guarda en una rama técnica `auren-state`; las credenciales permanecen exclusivamente en GitHub Actions Secrets. La [guía para GitHub Actions](docs/GITHUB_ACTIONS.md) explica la configuración paso a paso.
+
 ### Multi-Account Gmail for AI Agents & Assistants
 
 An open-source [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that gives AI agents and assistants full read and write access to Gmail. Connect multiple Gmail accounts, search emails, archive, label, and auto-unsubscribe. All through one server.
