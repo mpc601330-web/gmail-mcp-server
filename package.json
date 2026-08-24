@@ -9,6 +9,7 @@
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "collect": "tsx src/auren-mail/collect.ts",
+    "state:crypto": "tsx src/auren-mail/state-crypto.ts",
     "test": "node --import tsx --test test/*.test.ts"
   },
   "dependencies": {

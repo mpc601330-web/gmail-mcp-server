@@ -94,8 +94,8 @@ export class TokenStore {
         console.log(`[token-store] Loaded ${this.accounts.size} account(s) from file`);
         return;
       }
-    } catch (err) {
-      console.error("[token-store] Failed to load from file", err);
+    } catch {
+      console.error("[token-store] Failed to load account store (details suppressed)");
     }
 
     // Fall back to TOKENS_DATA env var
@@ -113,7 +113,8 @@ export class TokenStore {
         this.saveToFile();
         return;
       } catch (err) {
-        console.error("[token-store] Failed to parse TOKENS_DATA env var", err);
+        // Never print credential input or parser/decryption details in public CI.
+        throw new Error("TOKENS_DATA is malformed or incompatible with ENCRYPTION_KEY");
       }
     }
 
@@ -132,8 +133,8 @@ export class TokenStore {
           2
         )
       );
-    } catch (err) {
-      console.error("[token-store] Failed to write file", err);
+    } catch {
+      console.error("[token-store] Failed to write account store (details suppressed)");
     }
   }
 
@@ -156,14 +157,14 @@ export class TokenStore {
       addedAt: new Date().toISOString(),
     });
     this.save();
-    console.log(`[token-store] Added account: ${email}`);
+    console.log(`[token-store] Account added; ${this.accounts.size} configured`);
   }
 
   removeAccount(email: string): boolean {
     const deleted = this.accounts.delete(email);
     if (deleted) {
       this.save();
-      console.log(`[token-store] Removed account: ${email}`);
+      console.log(`[token-store] Account removed; ${this.accounts.size} configured`);
     }
     return deleted;
   }
@@ -173,8 +174,8 @@ export class TokenStore {
     if (!acct) return null;
     try {
       return decrypt(acct.refreshToken);
-    } catch (err) {
-      console.error(`[token-store] Failed to decrypt token for ${email}`, err);
+    } catch {
+      console.error("[token-store] Failed to decrypt an account token (details suppressed)");
       return null;
     }
   }

@@ -21,7 +21,7 @@ La autorización solicita `gmail.readonly`, `gmail.modify`, `gmail.send` y `user
 
 La operación no depende del scheduler. Configure el scheduler del proveedor con zona `Europe/Madrid` para ejecutar `npm run collect` a `0 9,18,20 * * *`. En hosts cuyo cron opera en UTC, use un scheduler con soporte IANA (el cambio CET/CEST impide expresar Madrid correctamente con un único cron UTC). Evite ejecutar dos instancias simultáneas contra el mismo archivo de estado.
 
-Construya con `docker build -t auren-mail .`. Monte `/app/data` como volumen persistente y suministre secretos mediante el panel del host. El contenedor conserva el servicio web `/health`; el collector puede ejecutarse con `docker run ... auren-mail npm run collect` compartiendo el mismo volumen.
+Construya con `docker build -t auren-mail .`. Monte `/app/data` como volumen persistente y suministre secretos mediante el panel del host. El contenedor conserva el servicio web `/health`; el collector puede ejecutarse con `docker run ... auren-mail npm run collect` compartiendo el mismo volumen. Como alternativa sin servidor persistente, consulte el [despliegue seguro con GitHub Actions](GITHUB_ACTIONS.md).
 
 Hugging Face Spaces está pensado para aplicaciones persistentes y puede dormir; no es una garantía de cron. Use un Space Docker únicamente para OAuth/health con almacenamiento persistente de pago, y un Scheduled Job externo que invoque la misma imagen/comando. Los secretos se configuran en Settings, nunca en Git. Si Jobs o almacenamiento persistente no están disponibles en su plan, despliegue sin cambios en Railway, Cloud Run Jobs, GitHub Actions con estado externo, o un servidor con volumen.
 
