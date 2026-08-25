@@ -10,15 +10,14 @@ import { join } from "node:path";
 // ---------------------------------------------------------------------------
 // Encrypted token store
 //
-// Persistence strategy (in priority order):
-// 1. File on disk (works if volume is mounted or running locally)
-// 2. TOKENS_DATA env var (base64-encoded JSON — survives Railway redeploys)
+// Persistence strategy defaults to file first, then TOKENS_DATA. Local OAuth
+// uses preferEnv so an explicitly supplied GitHub export is imported first.
 //
 // On save: writes to both file AND logs the env var value so you can copy it.
 // On load: tries file first, falls back to TOKENS_DATA env var.
 // ---------------------------------------------------------------------------
 
-interface StoredAccount {
+export interface StoredAccount {
   email: string;
   refreshToken: string; // encrypted
   addedAt: string;
@@ -76,11 +75,15 @@ function decrypt(blob: string): string {
 export class TokenStore {
   private accounts = new Map<string, StoredAccount>();
 
-  constructor() {
+  constructor(private options: { preferEnv?: boolean } = {}) {
     this.load();
   }
 
   private load(): void {
+    if (this.options.preferEnv && process.env.TOKENS_DATA) {
+      this.loadFromEnvironment();
+      return;
+    }
     // Try file first
     try {
       const dir = dataDir();
@@ -94,30 +97,31 @@ export class TokenStore {
         console.log(`[token-store] Loaded ${this.accounts.size} account(s) from file`);
         return;
       }
-    } catch (err) {
-      console.error("[token-store] Failed to load from file", err);
+    } catch {
+      console.error("[token-store] Failed to load account store (details suppressed)");
     }
 
     // Fall back to TOKENS_DATA env var
-    const envData = process.env.TOKENS_DATA;
-    if (envData) {
-      try {
-        const raw: StoreData = JSON.parse(
-          Buffer.from(envData, "base64").toString("utf8")
-        );
-        for (const acct of raw.accounts ?? []) {
-          this.accounts.set(acct.email, acct);
-        }
-        console.log(`[token-store] Loaded ${this.accounts.size} account(s) from TOKENS_DATA env var`);
-        // Write to file so subsequent saves work
-        this.saveToFile();
-        return;
-      } catch (err) {
-        console.error("[token-store] Failed to parse TOKENS_DATA env var", err);
-      }
-    }
+    if (process.env.TOKENS_DATA) { this.loadFromEnvironment(); return; }
 
     console.log("[token-store] No existing accounts found — starting fresh");
+  }
+
+  private loadFromEnvironment(): void {
+    try {
+      const decoded = Buffer.from(process.env.TOKENS_DATA!, "base64").toString("utf8");
+      const raw: StoreData = JSON.parse(decoded);
+      if (!Array.isArray(raw.accounts)) throw new Error("invalid accounts");
+      for (const acct of raw.accounts) {
+        if (!acct?.email || !acct?.refreshToken || !acct?.addedAt) throw new Error("invalid account");
+        this.accounts.set(acct.email, acct);
+      }
+      console.log(`[token-store] Loaded ${this.accounts.size} account(s) from TOKENS_DATA env var`);
+      this.saveToFile();
+    } catch {
+      // Never print credential input or parser/decryption details in public CI.
+      throw new Error("TOKENS_DATA is malformed or incompatible with ENCRYPTION_KEY");
+    }
   }
 
   private saveToFile(): void {
@@ -132,18 +136,15 @@ export class TokenStore {
           2
         )
       );
-    } catch (err) {
-      console.error("[token-store] Failed to write file", err);
+    } catch {
+      console.error("[token-store] Failed to write account store (details suppressed)");
     }
   }
 
   private save(): void {
     this.saveToFile();
 
-    // Also output the base64-encoded data for the TOKENS_DATA env var
-    const data: StoreData = { accounts: Array.from(this.accounts.values()) };
-    const encoded = Buffer.from(JSON.stringify(data)).toString("base64");
-    console.log(`[token-store] TOKENS_DATA=${encoded}`);
+    // Never log the export: although encrypted, it is credential material.
   }
 
   /** Returns base64-encoded token data for copying to env var */
@@ -159,14 +160,14 @@ export class TokenStore {
       addedAt: new Date().toISOString(),
     });
     this.save();
-    console.log(`[token-store] Added account: ${email}`);
+    console.log(`[token-store] Account added; ${this.accounts.size} configured`);
   }
 
   removeAccount(email: string): boolean {
     const deleted = this.accounts.delete(email);
     if (deleted) {
       this.save();
-      console.log(`[token-store] Removed account: ${email}`);
+      console.log(`[token-store] Account removed; ${this.accounts.size} configured`);
     }
     return deleted;
   }
@@ -176,8 +177,8 @@ export class TokenStore {
     if (!acct) return null;
     try {
       return decrypt(acct.refreshToken);
-    } catch (err) {
-      console.error(`[token-store] Failed to decrypt token for ${email}`, err);
+    } catch {
+      console.error("[token-store] Failed to decrypt an account token (details suppressed)");
       return null;
     }
   }

@@ -1,5 +1,10 @@
 node_modules/
 dist/
 data/
+.auren-data/
+.auren-state/
 .env
+.env.*
+!.env.example
 *.log
+coverage/

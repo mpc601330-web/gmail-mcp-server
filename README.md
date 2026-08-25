@@ -1,5 +1,25 @@
 # Gmail MCP Server
 
+> **Auren Mail:** este fork incluye un colector multi-cuenta fiable, sin LLM. Consulte la [guía completa de Auren Mail](docs/AUREN_MAIL.md).
+
+## GitHub Actions Deployment
+
+Auren Mail puede ejecutarse sin servidor persistente mediante el workflow programado incluido. El estado operativo se cifra y se guarda en una rama técnica `auren-state`; las credenciales permanecen exclusivamente en GitHub Actions Secrets. La [guía para GitHub Actions](docs/GITHUB_ACTIONS.md) explica la configuración paso a paso.
+
+### Autorizar Gmail sin servidor público
+
+Para preparar `TOKENS_DATA` no hace falta desplegar `/setup`. Auren Mail incluye un flujo local para aplicaciones de escritorio que abre un callback temporal exclusivamente en `127.0.0.1`, usa PKCE y se cierra al terminar:
+
+1. En **Google Cloud Console → APIs & Services**, habilite Gmail API y configure la pantalla de consentimiento. Si la aplicación está en modo Testing, añada cada Gmail como test user.
+2. Entre en **Credentials → Create credentials → OAuth client ID** y elija **Desktop app**. No elija Web application y no configure una URL pública. Descargue/copie el Client ID y Client secret.
+3. Copie `.env.example` a `.env` y rellene `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` y una `ENCRYPTION_KEY` de al menos 32 caracteres. `.env` está ignorado por Git.
+4. Ejecute `npm run oauth:authorize`. Abra en el mismo ordenador la URL mostrada, elija Gmail 1 y acepte el consentimiento. Google volverá al callback `http://127.0.0.1:<puerto>/oauth/callback`.
+5. Al terminar, copie el único valor `TOKENS_DATA` mostrado directamente a **GitHub → Settings → Environments → auren-mail-production → Environment secrets → TOKENS_DATA**. No lo pegue en commits, issues o logs.
+6. Para Gmail 2 y Gmail 3, conserve exactamente la misma `ENCRYPTION_KEY` y vuelva a ejecutar `npm run oauth:authorize`. Por defecto, `data/accounts.json` conserva localmente las cuentas anteriores. Si define `TOKENS_DATA` en el entorno, el comando lo importa con prioridad; en ese caso debe actualizar esa variable después de cada autorización para no volver a una exportación antigua.
+7. `npm run oauth:list` muestra las cuentas configuradas. Para retirar una cuenta use `npm run oauth:remove -- cuenta@example.com` y actualice después el Secret con la nueva exportación.
+
+Google retiró el antiguo flujo OOB (`urn:ietf:wg:oauth:2.0:oob`). Esta implementación sigue el [flujo OAuth para aplicaciones instaladas](https://developers.google.com/identity/protocols/oauth2/native-app) con loopback IP; nunca solicita pegar un authorization code en el terminal.
+
 ### Multi-Account Gmail for AI Agents & Assistants
 
 An open-source [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that gives AI agents and assistants full read and write access to Gmail. Connect multiple Gmail accounts, search emails, archive, label, and auto-unsubscribe. All through one server.

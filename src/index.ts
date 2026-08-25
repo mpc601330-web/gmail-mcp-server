@@ -18,6 +18,7 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD!;
 const SCOPES = [
   "https://www.googleapis.com/auth/gmail.readonly",
   "https://www.googleapis.com/auth/gmail.modify",
+  "https://www.googleapis.com/auth/gmail.send",
   "https://www.googleapis.com/auth/userinfo.email",
 ];
 
@@ -518,10 +519,10 @@ app.get("/oauth/callback", async (req: Request, res: Response) => {
     res.redirect(
       `/setup?key=${encodeURIComponent(state)}&message=${encodeURIComponent(`Successfully connected ${email}`)}`
     );
-  } catch (err: any) {
-    console.error("[oauth/callback] Error:", err);
+  } catch {
+    console.error("[oauth/callback] OAuth failed (details suppressed)");
     res.redirect(
-      `/setup?key=${encodeURIComponent(state)}&message=${encodeURIComponent(`Error: ${err.message}`)}`
+      `/setup?key=${encodeURIComponent(state)}&message=${encodeURIComponent("OAuth failed; verify configuration and try again")}`
     );
   }
 });
@@ -557,12 +558,12 @@ app.post("/mcp", async (req: Request, res: Response) => {
       mcpServer.close().catch(() => {});
       transport.close().catch(() => {});
     });
-  } catch (err: any) {
-    console.error("[mcp] Error handling request:", err);
+  } catch {
+    console.error("[mcp] Request failed (details suppressed)");
     if (!res.headersSent) {
       res.status(500).json({
         jsonrpc: "2.0",
-        error: { code: -32000, message: err.message },
+        error: { code: -32000, message: "Request failed" },
         id: null,
       });
     }
