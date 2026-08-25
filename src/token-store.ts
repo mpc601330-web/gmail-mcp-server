@@ -10,9 +10,8 @@ import { join } from "node:path";
 // ---------------------------------------------------------------------------
 // Encrypted token store
 //
-// Persistence strategy (in priority order):
-// 1. File on disk (works if volume is mounted or running locally)
-// 2. TOKENS_DATA env var (base64-encoded JSON — survives Railway redeploys)
+// Persistence strategy defaults to file first, then TOKENS_DATA. Local OAuth
+// uses preferEnv so an explicitly supplied GitHub export is imported first.
 //
 // On save: writes to both file AND logs the env var value so you can copy it.
 // On load: tries file first, falls back to TOKENS_DATA env var.
@@ -76,11 +75,15 @@ function decrypt(blob: string): string {
 export class TokenStore {
   private accounts = new Map<string, StoredAccount>();
 
-  constructor() {
+  constructor(private options: { preferEnv?: boolean } = {}) {
     this.load();
   }
 
   private load(): void {
+    if (this.options.preferEnv && process.env.TOKENS_DATA) {
+      this.loadFromEnvironment();
+      return;
+    }
     // Try file first
     try {
       const dir = dataDir();
@@ -99,26 +102,26 @@ export class TokenStore {
     }
 
     // Fall back to TOKENS_DATA env var
-    const envData = process.env.TOKENS_DATA;
-    if (envData) {
-      try {
-        const raw: StoreData = JSON.parse(
-          Buffer.from(envData, "base64").toString("utf8")
-        );
-        for (const acct of raw.accounts ?? []) {
-          this.accounts.set(acct.email, acct);
-        }
-        console.log(`[token-store] Loaded ${this.accounts.size} account(s) from TOKENS_DATA env var`);
-        // Write to file so subsequent saves work
-        this.saveToFile();
-        return;
-      } catch (err) {
-        // Never print credential input or parser/decryption details in public CI.
-        throw new Error("TOKENS_DATA is malformed or incompatible with ENCRYPTION_KEY");
-      }
-    }
+    if (process.env.TOKENS_DATA) { this.loadFromEnvironment(); return; }
 
     console.log("[token-store] No existing accounts found — starting fresh");
+  }
+
+  private loadFromEnvironment(): void {
+    try {
+      const decoded = Buffer.from(process.env.TOKENS_DATA!, "base64").toString("utf8");
+      const raw: StoreData = JSON.parse(decoded);
+      if (!Array.isArray(raw.accounts)) throw new Error("invalid accounts");
+      for (const acct of raw.accounts) {
+        if (!acct?.email || !acct?.refreshToken || !acct?.addedAt) throw new Error("invalid account");
+        this.accounts.set(acct.email, acct);
+      }
+      console.log(`[token-store] Loaded ${this.accounts.size} account(s) from TOKENS_DATA env var`);
+      this.saveToFile();
+    } catch {
+      // Never print credential input or parser/decryption details in public CI.
+      throw new Error("TOKENS_DATA is malformed or incompatible with ENCRYPTION_KEY");
+    }
   }
 
   private saveToFile(): void {

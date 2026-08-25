@@ -35,12 +35,12 @@ Los valores nunca deben escribirse en un issue, commit, variable no secreta o lo
 
 ### 2. Añadir Gmail 1, Gmail 2 y Gmail 3
 
-La autorización se sigue realizando con el `/setup` existente en una ejecución local o temporal del servidor:
+La autorización puede realizarse completamente en local, sin desplegar `/setup` ni exponer un callback público. Cree en Google Cloud un OAuth Client de tipo **Desktop app**, configure `.env` y ejecute `npm run oauth:authorize`. El comando usa PKCE y un callback temporal que solo escucha en `127.0.0.1`:
 
-1. Autorice Gmail 1 con **Add Gmail Account**.
-2. Repita **Add Gmail Account** para Gmail 2.
-3. Repita para Gmail 3. La tabla debe mostrar las tres cuentas.
-4. Copie una sola vez el valor completo de `TOKENS_DATA` resultante al Secret del mismo nombre. Cada nueva exportación contiene todas las cuentas; no cree un Secret por cuenta.
+1. Ejecute `npm run oauth:authorize`, abra la URL mostrada y autorice Gmail 1.
+2. Conserve el `data/accounts.json` local cifrado y mantenga siempre la misma `ENCRYPTION_KEY`. Si decide definir `TOKENS_DATA` localmente, actualícelo después de cada cuenta porque tiene prioridad sobre el archivo.
+3. Repita `npm run oauth:authorize` para Gmail 2 y después Gmail 3. Puede comprobar el resultado con `npm run oauth:list`.
+4. Copie el último valor completo de `TOKENS_DATA` al Secret del mismo nombre. Cada exportación contiene todas las cuentas; no cree un Secret por cuenta.
 
 Google puede exigir consentimiento, 2FA y que cada dirección sea test user si la aplicación OAuth está en modo Testing. Esas acciones solo puede realizarlas la propietaria de las cuentas.
 

@@ -10,11 +10,15 @@
     "dev": "tsx watch src/index.ts",
     "collect": "tsx src/auren-mail/collect.ts",
     "state:crypto": "tsx src/auren-mail/state-crypto.ts",
+    "oauth:authorize": "tsx src/oauth-local.ts authorize",
+    "oauth:list": "tsx src/oauth-local.ts list",
+    "oauth:remove": "tsx src/oauth-local.ts remove",
     "test": "node --import tsx --test test/*.test.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
     "express": "^5.1.0",
+    "google-auth-library": "^9.15.1",
     "googleapis": "^148.0.0",
     "zod": "^3.24.4"
   },
